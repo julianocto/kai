@@ -1,0 +1,338 @@
+#!/bin/bash
+# Ralph — Autonomous AI developer loop for Claude Code
+# https://github.com/kraftapps-ai/ralph
+#
+# Usage:
+#   ralph init              — Initialize ralph in current project
+#   ralph                   — Run the loop (implement + review)
+#   ralph add "title" "description" "criteria1" "criteria2" ...
+#   ralph status            — Show remaining stories
+#   ralph reset <id>        — Reset a story to incomplete
+
+set -e
+
+RALPH_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(pwd)"
+PRD_FILE="ralph.json"
+PROGRESS_FILE="ralph-progress.txt"
+PROMPT_FILE=".ralph/PROMPT.md"
+
+# ── Commands ───────────────────────────────────────────
+
+cmd_init() {
+    if [ -f "$PRD_FILE" ]; then
+        echo "⚠️  ralph.json already exists. Aborting."
+        exit 1
+    fi
+
+    mkdir -p .ralph
+
+    # Create ralph.json
+    cat > "$PRD_FILE" << 'JSONEOF'
+{
+  "branchName": "main",
+  "userStories": []
+}
+JSONEOF
+
+    # Create progress file
+    echo "# Ralph Progress Log" > "$PROGRESS_FILE"
+    echo "" >> "$PROGRESS_FILE"
+
+    # Create prompt file
+    cat > "$PROMPT_FILE" << 'PROMPTEOF'
+You are an autonomous AI developer.
+
+## Your inputs
+- `@ralph.json` — user stories with `passes: true/false`.
+- `@ralph-progress.txt` — append-only log of what's been done.
+
+## Your task (ONE story per loop)
+
+1. Read ralph.json and find the highest-priority story where `passes: false`.
+2. Read ralph-progress.txt to understand what's already been done.
+3. **PLAN before coding.** List the files you'll change and what you'll do in each.
+4. Implement ONLY that one story.
+5. Run verification (build, tests, lint — whatever applies).
+6. **SELF-REVIEW.** For each acceptance criterion, state what you did and cite evidence (file, line, command output). Do NOT use "should work", "probably", or "seems to".
+7. If all criteria pass, commit with a descriptive message.
+8. Update ralph.json: set `passes` to `true`.
+9. Append to ralph-progress.txt: what you did, what you learned.
+
+## Verification Protocol
+
+- Run the project's build/test command and read the output.
+- You cannot claim a criterion is met without evidence.
+- "I added the component" is NOT evidence. "I added FooComponent at src/Foo.tsx:45 and the build passes" IS evidence.
+
+## Rules
+
+- ONE STORY PER LOOP. Do not work on multiple stories.
+- Search the codebase before assuming anything.
+- No placeholder implementations. Fully implement or report BLOCKED.
+- Do not break existing functionality.
+- Keep commits atomic — one commit per story.
+- If ALL stories have `passes: true`, output: <promise>COMPLETE</promise>
+
+## Rationalization Blockers
+
+| Your thought | Why it's wrong | Do this instead |
+|---|---|---|
+| "This story is already implemented" | You haven't verified. | Read every criterion, find the code, run the build. |
+| "I'll just mark it complete" | A commit with only ralph.json changes is wrong. | Every story needs real code changes. |
+| "The build passes so it works" | Build ≠ correct behavior. | Verify each criterion independently. |
+| "I'll fix other issues I noticed" | Scope creep introduces bugs. | Only implement the current story. |
+| "This is close enough" | Partial = broken for the user. | Implement ALL criteria or report BLOCKED. |
+| "I'll skip the review, it's simple" | Simple code has bugs too. | Always self-review against criteria. |
+| "I need to refactor first" | Refactoring without a story = scope creep. | Only refactor if the story requires it. |
+
+## Status Reporting
+
+- **DONE** — All criteria met, build passes, committed.
+- **DONE_WITH_CONCERNS** — Completed but something feels off. Document in `concerns` field.
+- **BLOCKED** — Cannot complete. Document why in ralph-progress.txt.
+- **NEEDS_CONTEXT** — Missing information. Document in ralph-progress.txt.
+PROMPTEOF
+
+    echo "✅ Ralph initialized!"
+    echo "   Created: ralph.json, ralph-progress.txt, .ralph/PROMPT.md"
+    echo ""
+    echo "Next steps:"
+    echo "   1. Edit .ralph/PROMPT.md to add project-specific context"
+    echo "   2. Add stories: ralph add \"Story title\" \"Description\" \"criterion 1\" \"criterion 2\""
+    echo "   3. Run: ralph"
+}
+
+cmd_add() {
+    if [ ! -f "$PRD_FILE" ]; then
+        echo "❌ ralph.json not found. Run 'ralph init' first."
+        exit 1
+    fi
+
+    title="$1"
+    description="$2"
+    shift 2
+
+    if [ -z "$title" ]; then
+        echo "Usage: ralph add \"title\" \"description\" \"criterion1\" \"criterion2\" ..."
+        exit 1
+    fi
+
+    # Get next ID
+    max_id=$(jq '[.userStories[].id] | max // 0' "$PRD_FILE")
+    next_id=$((max_id + 1))
+
+    # Build criteria array
+    criteria="[]"
+    for c in "$@"; do
+        criteria=$(echo "$criteria" | jq --arg c "$c" '. + [$c]')
+    done
+
+    # Add story
+    jq --arg title "$title" \
+       --arg desc "$description" \
+       --argjson id "$next_id" \
+       --argjson criteria "$criteria" \
+       '.userStories += [{
+         id: $id,
+         title: $title,
+         description: $desc,
+         acceptanceCriteria: $criteria,
+         priority: $id,
+         passes: false
+       }]' "$PRD_FILE" > "${PRD_FILE}.tmp" && mv "${PRD_FILE}.tmp" "$PRD_FILE"
+
+    echo "✅ Added story #${next_id}: ${title}"
+}
+
+cmd_status() {
+    if [ ! -f "$PRD_FILE" ]; then
+        echo "❌ ralph.json not found. Run 'ralph init' first."
+        exit 1
+    fi
+
+    total=$(jq '.userStories | length' "$PRD_FILE")
+    done=$(jq '[.userStories[] | select(.passes == true)] | length' "$PRD_FILE")
+    remaining=$((total - done))
+
+    echo "📊 Ralph status: ${done}/${total} stories complete (${remaining} remaining)"
+    echo ""
+
+    if [ "$remaining" -gt 0 ]; then
+        echo "Remaining:"
+        jq -r '.userStories[] | select(.passes == false) | "  \(.id): \(.title)"' "$PRD_FILE"
+    fi
+}
+
+cmd_reset() {
+    id="$1"
+    if [ -z "$id" ]; then
+        echo "Usage: ralph reset <story-id>"
+        exit 1
+    fi
+
+    jq --argjson id "$id" '(.userStories[] | select(.id == $id)).passes = false' "$PRD_FILE" > "${PRD_FILE}.tmp" && mv "${PRD_FILE}.tmp" "$PRD_FILE"
+    echo "✅ Reset story #${id} to incomplete."
+}
+
+cmd_run() {
+    if [ ! -f "$PRD_FILE" ]; then
+        echo "❌ ralph.json not found. Run 'ralph init' first."
+        exit 1
+    fi
+
+    # Check for custom prompt or use default
+    if [ -f "$PROMPT_FILE" ]; then
+        prompt_arg="@${PROMPT_FILE}"
+    else
+        echo "❌ .ralph/PROMPT.md not found. Run 'ralph init' first."
+        exit 1
+    fi
+
+    # Collect optional context files
+    context_files="$prompt_arg @${PRD_FILE} @${PROGRESS_FILE}"
+    # Add any extra context files from .ralph/context.txt
+    if [ -f ".ralph/context.txt" ]; then
+        while IFS= read -r file; do
+            [ -n "$file" ] && [ -f "$file" ] && context_files="$context_files @${file}"
+        done < .ralph/context.txt
+    fi
+
+    echo "🔁 Starting Ralph loop..."
+    echo "   Stories remaining: $(jq '[.userStories[] | select(.passes == false)] | length' "$PRD_FILE")"
+    echo "   Press Ctrl+C to stop"
+    echo ""
+
+    iteration=0
+    review_failures=0
+
+    while :; do
+        iteration=$((iteration + 1))
+        REMAINING=$(jq '[.userStories[] | select(.passes == false)] | length' "$PRD_FILE")
+
+        if [ "$REMAINING" -eq 0 ]; then
+            echo "✅ All stories complete!"
+            break
+        fi
+
+        NEXT_ID=$(jq -r '[.userStories[] | select(.passes == false)] | sort_by(.priority) | .[0].id' "$PRD_FILE")
+        NEXT=$(jq -r '[.userStories[] | select(.passes == false)] | sort_by(.priority) | .[0].title' "$PRD_FILE")
+
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📍 Iteration #${iteration} — $(date)"
+        echo "   Remaining: $REMAINING | Next: $NEXT"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+        start_time=$(date +%s)
+
+        # ── Step 1: Implement ──────────────────────────
+        set +e
+        result=$(claude -p \
+          --dangerously-skip-permissions \
+          $context_files)
+        exit_code=$?
+        set -e
+
+        end_time=$(date +%s)
+        elapsed=$(( end_time - start_time ))
+        minutes=$(( elapsed / 60 ))
+        seconds=$(( elapsed % 60 ))
+
+        echo "$result" | tail -20
+        echo ""
+
+        if [ $exit_code -ne 0 ]; then
+            echo "⚠️  Iteration #${iteration} exited with code ${exit_code}. Restarting..."
+            continue
+        fi
+
+        if [[ "$result" == *"<promise>COMPLETE</promise>"* ]]; then
+            echo "🎉 All stories complete after $iteration iterations!"
+            exit 0
+        fi
+
+        # ── Step 2: Review ─────────────────────────────
+        STORY_PASSES=$(jq -r ".userStories[] | select(.id == $NEXT_ID) | .passes" "$PRD_FILE")
+
+        if [ "$STORY_PASSES" = "true" ]; then
+            last_commit=$(git log --oneline -1 2>/dev/null || echo "no git")
+            last_diff_stat=$(git diff --stat HEAD~1 HEAD 2>/dev/null | tail -1)
+
+            # Sanity: did the commit have real code changes?
+            if [ -z "$last_diff_stat" ] || [[ "$last_diff_stat" == *"0 insertions"*"0 deletions"* ]]; then
+                echo "🔴 REVIEW FAIL: No code changes in commit!"
+                jq --argjson id "$NEXT_ID" '(.userStories[] | select(.id == $id)).passes = false' "$PRD_FILE" > "${PRD_FILE}.tmp" && mv "${PRD_FILE}.tmp" "$PRD_FILE"
+                review_failures=$((review_failures + 1))
+                if [ $review_failures -ge 3 ]; then
+                    echo "🛑 3 failures on story #${NEXT_ID}. Skipping."
+                    jq --argjson id "$NEXT_ID" '(.userStories[] | select(.id == $id)).passes = true | (.userStories[] | select(.id == $id)).concerns = "Skipped after 3 failures"' "$PRD_FILE" > "${PRD_FILE}.tmp" && mv "${PRD_FILE}.tmp" "$PRD_FILE"
+                    review_failures=0
+                fi
+                continue
+            fi
+
+            # Dispatch reviewer
+            echo "🔍 Reviewing story #${NEXT_ID}..."
+            ACCEPTANCE=$(jq -r ".userStories[] | select(.id == $NEXT_ID) | .acceptanceCriteria | join(\"\n- \")" "$PRD_FILE")
+
+            set +e
+            review_result=$(claude -p \
+              --dangerously-skip-permissions \
+              "You are a code reviewer. The implementer claims story #${NEXT_ID} ('${NEXT}') is complete.
+
+Last commit: ${last_commit}
+Changes: ${last_diff_stat}
+
+Acceptance criteria:
+- ${ACCEPTANCE}
+
+Instructions:
+1. Read the changed files (git diff HEAD~1 HEAD).
+2. For EACH criterion, verify it is met by the actual code. Be skeptical.
+3. Run the build/test command if applicable.
+4. If ANY criterion is not met: REVIEW_FAIL: [which criterion and why]
+5. If all criteria met: REVIEW_PASS
+
+Do NOT trust the implementer's self-report. Verify independently.")
+            review_exit=$?
+            set -e
+
+            echo "$review_result" | tail -10
+
+            if [[ "$review_result" == *"REVIEW_FAIL"* ]]; then
+                echo "🔴 Review failed!"
+                jq --argjson id "$NEXT_ID" '(.userStories[] | select(.id == $id)).passes = false' "$PRD_FILE" > "${PRD_FILE}.tmp" && mv "${PRD_FILE}.tmp" "$PRD_FILE"
+                echo "" >> "$PROGRESS_FILE"
+                echo "## REVIEW FEEDBACK for Story $NEXT_ID" >> "$PROGRESS_FILE"
+                echo "$review_result" | grep -i "REVIEW_FAIL" >> "$PROGRESS_FILE" 2>/dev/null
+                review_failures=$((review_failures + 1))
+                if [ $review_failures -ge 3 ]; then
+                    echo "🛑 3 review failures on story #${NEXT_ID}. Skipping."
+                    jq --argjson id "$NEXT_ID" '(.userStories[] | select(.id == $id)).passes = true | (.userStories[] | select(.id == $id)).concerns = "Passed after 3 review attempts"' "$PRD_FILE" > "${PRD_FILE}.tmp" && mv "${PRD_FILE}.tmp" "$PRD_FILE"
+                    review_failures=0
+                fi
+            else
+                echo "✅ Review passed!"
+                review_failures=0
+            fi
+        fi
+
+        echo "✅ Iteration #${iteration} done in ${minutes}m ${seconds}s"
+        last_commit=$(git log --oneline -1 2>/dev/null || echo "")
+        [ -n "$last_commit" ] && echo "📌 Last commit: ${last_commit}"
+        echo ""
+    done
+
+    echo "🎉 Ralph finished after ${iteration} iterations."
+}
+
+# ── Main ───────────────────────────────────────────────
+
+case "${1:-run}" in
+    init)    cmd_init ;;
+    add)     shift; cmd_add "$@" ;;
+    status)  cmd_status ;;
+    reset)   shift; cmd_reset "$@" ;;
+    run|"")  cmd_run ;;
+    *)       echo "Usage: ralph [init|add|status|reset|run]"; exit 1 ;;
+esac
