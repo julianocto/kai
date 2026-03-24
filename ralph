@@ -26,19 +26,18 @@ cmd_help() {
 Ralph — Autonomous AI developer loop for Claude Code
 
 Commands:
-  ralph init           Initialize ralph in the current project
-  ralph plan [topic]   Brainstorm with AI PM → generates stories
-  ralph import [file]  Import stories from JSON (stdin or file)
-  ralph go             Run the implement + review loop
-  ralph status         Show progress and remaining stories
-  ralph reset <id>     Reset a story to incomplete
-  ralph help           Show this help
+  ralph init             Initialize ralph in the current project
+  ralph plan "topic"     AI generates stories from your description
+  ralph go               Run the implement + review loop
+  ralph status           Show progress and remaining stories
+  ralph reset <id>       Reset a story to incomplete
+  ralph help             Show this help
 
 Workflow:
-  1. ralph init                          # setup
-  2. vim .ralph/PROMPT.md                # add project context
-  3. ralph plan "add user auth"          # brainstorm → stories
-  4. ralph go                            # AI implements everything
+  1. ralph init                       # setup
+  2. vim .ralph/PROMPT.md             # add project context
+  3. ralph plan "add user auth"       # AI generates stories
+  4. ralph go                         # AI implements everything
 
 Requirements: claude (Claude Code CLI), jq, git
 
@@ -191,39 +190,51 @@ The user will say \"looks good\" or \"ship it\" when they want you to output the
 ${existing}${project_context}"
 
     if [ -n "$topic" ]; then
-        echo "Starting plan session: $topic"
-        echo "Say 'ship it' when ready to generate stories."
+        echo "Planning: $topic"
         echo ""
-        claude --system-prompt "$pm_prompt" "Let's plan: $topic"
     else
-        echo "Starting plan session..."
-        echo "Describe what you want to build. Say 'ship it' when ready."
-        echo ""
-        claude --system-prompt "$pm_prompt"
-    fi
-
-    echo ""
-    echo "To add the stories, copy the JSON block and run: ralph import"
-}
-
-cmd_import() {
-    if [ ! -f "$PRD_FILE" ]; then
-        echo "ralph.json not found. Run 'ralph init' first."
+        echo "Usage: ralph plan \"description of what to build\""
         exit 1
     fi
 
-    # Read from file argument or stdin
-    if [ -n "$1" ] && [ -f "$1" ]; then
-        stories_json=$(cat "$1")
-    else
-        echo "Paste the ralph-stories JSON block (Ctrl+D when done):"
-        stories_json=$(cat)
+    set +e
+    result=$(claude -p --dangerously-skip-permissions "$pm_prompt
+
+The developer wants to build: $topic
+
+Generate the stories now. Output ONLY the ralph-stories JSON block.")
+    set -e
+
+    # Extract stories JSON
+    stories_json=$(echo "$result" | sed -n '/```ralph-stories/,/```/p' | sed '1d;$d' 2>/dev/null)
+
+    if [ -z "$stories_json" ]; then
+        # Try without fences — maybe it output raw JSON
+        stories_json=$(echo "$result" | grep -Pzo '\[[\s\S]*\]' 2>/dev/null | head -1)
     fi
 
-    # Strip markdown fences if present
-    stories_json=$(echo "$stories_json" | sed '/^```/d')
+    if [ -n "$stories_json" ] && echo "$stories_json" | jq empty 2>/dev/null; then
+        count=$(echo "$stories_json" | jq 'length')
+        echo "Generated ${count} stories:"
+        echo ""
+        echo "$stories_json" | jq -r '.[] | "  - \(.title)"'
+        echo ""
+        echo "Add to ralph.json? (y/n)"
+        read -r confirm
+        if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ] || [ "$confirm" = "" ]; then
+            _import_stories "$stories_json"
+        else
+            echo "Skipped."
+        fi
+    else
+        echo "Failed to generate stories. Output:"
+        echo "$result" | tail -20
+    fi
+}
 
-    # Validate JSON
+_import_stories() {
+    local stories_json="$1"
+
     if ! echo "$stories_json" | jq empty 2>/dev/null; then
         echo "Invalid JSON."
         return 1
@@ -440,7 +451,6 @@ Do NOT trust the implementer's self-report. Verify independently.")
 case "${1:-help}" in
     init)    cmd_init ;;
     plan)    shift; cmd_plan "$@" ;;
-    import)  shift; cmd_import "$@" ;;
     go)      cmd_go ;;
     status)  cmd_status ;;
     reset)   shift; cmd_reset "$@" ;;

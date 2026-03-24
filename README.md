@@ -54,12 +54,7 @@ vim .ralph/PROMPT.md
 
 # Plan with AI PM — brainstorm, refine, generate stories
 ralph plan "add user authentication with OAuth"
-# ... chat, refine, "ship it" → generates stories JSON
-ralph import  # paste the stories
-
-# Or plan with a topic directly
-ralph plan
-# ... open-ended session, describe anything
+# → AI generates stories → confirms → adds to ralph.json
 
 # Check what's queued
 ralph status
@@ -73,23 +68,11 @@ ralph go
 | Command | Description |
 |---|---|
 | `ralph init` | Initialize ralph in the current project |
-| `ralph plan [topic]` | Interactive session with AI PM — brainstorm and generate stories |
-| `ralph import [file]` | Import stories from JSON (stdin or file) |
+| `ralph plan "topic"` | AI PM generates stories and adds them to ralph.json |
 | `ralph go` | Run the implement + review loop |
 | `ralph status` | Show progress and remaining stories |
 | `ralph reset <id>` | Reset a story to incomplete |
 | `ralph help` | Show help |
-
-### Planning
-
-`ralph plan` opens an **interactive Claude session** where you talk to an AI product manager. Describe your idea, answer questions, iterate on scope — then say "ship it" to generate stories.
-
-```bash
-ralph plan "add user authentication"
-# Chat with the PM... refine scope... discuss tradeoffs...
-# Say "ship it" → generates ralph-stories JSON
-# Copy the block → ralph import
-```
 
 ## Files
 
