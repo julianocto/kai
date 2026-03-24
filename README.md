@@ -49,28 +49,23 @@ cd your-project
 # Initialize
 ralph init
 
-# Edit the prompt with your project context
+# Add your project context (tech stack, build commands, conventions)
 vim .ralph/PROMPT.md
 
-# Option A: Brainstorm interactively with AI PM
-ralph brainstorm "add user authentication with OAuth"
+# Plan with AI PM — brainstorm, refine, generate stories
+ralph plan "add user authentication with OAuth"
+# ... chat, refine, "ship it" → generates stories JSON
+ralph import  # paste the stories
 
-# Option B: Generate stories from a description
-ralph plan "add login page, password reset, session management"
-
-# Option C: Add stories manually
-ralph add "Add user login page" \
-  "Create a login page with email/password fields" \
-  "Login page renders at /login" \
-  "Email and password fields present" \
-  "Submit button calls auth API" \
-  "App builds successfully"
+# Or plan with a topic directly
+ralph plan
+# ... open-ended session, describe anything
 
 # Check what's queued
 ralph status
 
-# Run the loop — implement + review, one story at a time
-ralph
+# Let Ralph implement everything
+ralph go
 ```
 
 ## Commands
@@ -78,32 +73,22 @@ ralph
 | Command | Description |
 |---|---|
 | `ralph init` | Initialize ralph in the current project |
-| `ralph brainstorm [topic]` | Interactive brainstorm session with AI PM |
-| `ralph plan "topic"` | Non-interactive: AI generates stories from a description |
+| `ralph plan [topic]` | Interactive session with AI PM — brainstorm and generate stories |
 | `ralph import [file]` | Import stories from JSON (stdin or file) |
-| `ralph` or `ralph run` | Run the implement-review loop |
-| `ralph add "title" "desc" "c1" "c2"` | Add a single story manually |
-| `ralph status` | Show progress (done/total) |
+| `ralph go` | Run the implement + review loop |
+| `ralph status` | Show progress and remaining stories |
 | `ralph reset <id>` | Reset a story to incomplete |
+| `ralph help` | Show help |
 
-### Brainstorm mode
+### Planning
 
-`ralph brainstorm` opens an **interactive Claude session** where you talk to an AI product manager. Describe your idea, answer questions, iterate on scope — then say "ship it" to generate stories.
+`ralph plan` opens an **interactive Claude session** where you talk to an AI product manager. Describe your idea, answer questions, iterate on scope — then say "ship it" to generate stories.
 
 ```bash
-ralph brainstorm "add user authentication"
-# Chat with the PM... refine the idea...
+ralph plan "add user authentication"
+# Chat with the PM... refine scope... discuss tradeoffs...
 # Say "ship it" → generates ralph-stories JSON
 # Copy the block → ralph import
-```
-
-### Plan mode
-
-`ralph plan` is the **non-interactive** version. Give it a description and it generates stories directly:
-
-```bash
-ralph plan "add OAuth login with Google and GitHub, password reset via email, session management"
-# → Generates stories → prompts to add them to ralph.json
 ```
 
 ## Files
@@ -180,7 +165,7 @@ Inspired by [Superpowers](https://github.com/obra/superpowers).
 - **Keep stories small.** 5-15 minutes of work each. Ralph does better with many small stories than few large ones.
 - **Add build/test commands** to `.ralph/PROMPT.md` so Ralph knows how to verify.
 - **Use `ralph status`** to monitor progress, or `git log --oneline` to see commits.
-- **Run overnight.** `nohup ralph > ralph.log 2>&1 &` and check in the morning.
+- **Run overnight.** `nohup ralph go > ralph.log 2>&1 &` and check in the morning.
 
 ## Cost
 
