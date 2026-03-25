@@ -1,47 +1,47 @@
 #!/bin/bash
-# Ralph — Autonomous AI developer loop for Claude Code
-# https://github.com/julianocto/ralph
+# Kai — Autonomous AI developer loop for Claude Code
+# https://github.com/julianocto/kai
 #
 # Usage:
-#   ralph              — Show help
-#   ralph init         — Initialize ralph in current project
-#   ralph plan [topic] — Interactive brainstorm with AI PM, generates stories
-#   ralph import       — Import stories from JSON
-#   ralph go           — Run the implement + review loop
-#   ralph status       — Show remaining stories
-#   ralph reset <id>   — Reset a story to incomplete
+#   kai              — Show help
+#   kai init         — Initialize kai in current project
+#   kai plan [topic] — Interactive brainstorm with AI PM, generates stories
+#   kai import       — Import stories from JSON
+#   kai go           — Run the implement + review loop
+#   kai status       — Show remaining stories
+#   kai reset <id>   — Reset a story to incomplete
 
 set -e
 
-RALPH_DIR="$(cd "$(dirname "$0")" && pwd)"
+KAI_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(pwd)"
-PRD_FILE="ralph.json"
-PROGRESS_FILE="ralph-progress.txt"
-PROMPT_FILE=".ralph/PROMPT.md"
+PRD_FILE="kai.json"
+PROGRESS_FILE="kai-progress.txt"
+PROMPT_FILE=".kai/PROMPT.md"
 
 # ── Help ───────────────────────────────────────────────
 
 cmd_help() {
     cat << 'EOF'
-Ralph — Autonomous AI developer loop for Claude Code
+Kai — Autonomous AI developer loop for Claude Code
 
 Commands:
-  ralph init             Initialize ralph in the current project
-  ralph plan "topic"     AI generates stories from your description
-  ralph go               Run the implement + review loop
-  ralph status           Show progress and remaining stories
-  ralph reset <id>       Reset a story to incomplete
-  ralph help             Show this help
+  kai init             Initialize kai in the current project
+  kai plan "topic"     AI generates stories from your description
+  kai go               Run the implement + review loop
+  kai status           Show progress and remaining stories
+  kai reset <id>       Reset a story to incomplete
+  kai help             Show this help
 
 Workflow:
-  1. ralph init                       # setup
-  2. vim .ralph/PROMPT.md             # add project context
-  3. ralph plan "add user auth"       # AI generates stories
-  4. ralph go                         # AI implements everything
+  1. kai init                       # setup
+  2. vim .kai/PROMPT.md             # add project context
+  3. kai plan "add user auth"       # AI generates stories
+  4. kai go                         # AI implements everything
 
 Requirements: claude (Claude Code CLI), jq, git
 
-https://github.com/julianocto/ralph
+https://github.com/julianocto/kai
 EOF
 }
 
@@ -49,11 +49,11 @@ EOF
 
 cmd_init() {
     if [ -f "$PRD_FILE" ]; then
-        echo "ralph.json already exists. Aborting."
+        echo "kai.json already exists. Aborting."
         exit 1
     fi
 
-    mkdir -p .ralph
+    mkdir -p .kai
 
     cat > "$PRD_FILE" << 'JSONEOF'
 {
@@ -62,27 +62,27 @@ cmd_init() {
 }
 JSONEOF
 
-    echo "# Ralph Progress Log" > "$PROGRESS_FILE"
+    echo "# Kai Progress Log" > "$PROGRESS_FILE"
     echo "" >> "$PROGRESS_FILE"
 
     cat > "$PROMPT_FILE" << 'PROMPTEOF'
 You are an autonomous AI developer.
 
 ## Your inputs
-- `@ralph.json` — user stories with `passes: true/false`.
-- `@ralph-progress.txt` — append-only log of what's been done.
+- `@kai.json` — user stories with `passes: true/false`.
+- `@kai-progress.txt` — append-only log of what's been done.
 
 ## Your task (ONE story per loop)
 
-1. Read ralph.json and find the highest-priority story where `passes: false`.
-2. Read ralph-progress.txt to understand what's already been done.
+1. Read kai.json and find the highest-priority story where `passes: false`.
+2. Read kai-progress.txt to understand what's already been done.
 3. **PLAN before coding.** List the files you'll change and what you'll do in each.
 4. Implement ONLY that one story.
 5. Run verification (build, tests, lint — whatever applies).
 6. **SELF-REVIEW.** For each acceptance criterion, state what you did and cite evidence (file, line, command output). Do NOT use "should work", "probably", or "seems to".
 7. If all criteria pass, commit with a descriptive message.
-8. Update ralph.json: set `passes` to `true`.
-9. Append to ralph-progress.txt: what you did, what you learned.
+8. Update kai.json: set `passes` to `true`.
+9. Append to kai-progress.txt: what you did, what you learned.
 
 ## Verification Protocol
 
@@ -104,7 +104,7 @@ You are an autonomous AI developer.
 | Your thought | Why it's wrong | Do this instead |
 |---|---|---|
 | "This story is already implemented" | You haven't verified. | Read every criterion, find the code, run the build. |
-| "I'll just mark it complete" | A commit with only ralph.json changes is wrong. | Every story needs real code changes. |
+| "I'll just mark it complete" | A commit with only kai.json changes is wrong. | Every story needs real code changes. |
 | "The build passes so it works" | Build ≠ correct behavior. | Verify each criterion independently. |
 | "I'll fix other issues I noticed" | Scope creep introduces bugs. | Only implement the current story. |
 | "This is close enough" | Partial = broken for the user. | Implement ALL criteria or report BLOCKED. |
@@ -115,25 +115,25 @@ You are an autonomous AI developer.
 
 - **DONE** — All criteria met, build passes, committed.
 - **DONE_WITH_CONCERNS** — Completed but something feels off. Document in `concerns` field.
-- **BLOCKED** — Cannot complete. Document why in ralph-progress.txt.
-- **NEEDS_CONTEXT** — Missing information. Document in ralph-progress.txt.
+- **BLOCKED** — Cannot complete. Document why in kai-progress.txt.
+- **NEEDS_CONTEXT** — Missing information. Document in kai-progress.txt.
 PROMPTEOF
 
-    echo "Ralph initialized."
+    echo "Kai initialized."
     echo ""
-    echo "  Created: ralph.json, ralph-progress.txt, .ralph/PROMPT.md"
+    echo "  Created: kai.json, kai-progress.txt, .kai/PROMPT.md"
     echo ""
     echo "Next:"
-    echo "  1. Edit .ralph/PROMPT.md with your project context"
-    echo "  2. ralph plan \"what you want to build\""
-    echo "  3. ralph go"
+    echo "  1. Edit .kai/PROMPT.md with your project context"
+    echo "  2. kai plan \"what you want to build\""
+    echo "  3. kai go"
 }
 
 cmd_plan() {
     topic="${1:-}"
 
     if [ ! -f "$PRD_FILE" ]; then
-        echo "ralph.json not found. Run 'ralph init' first."
+        echo "kai.json not found. Run 'kai init' first."
         exit 1
     fi
 
@@ -143,7 +143,7 @@ cmd_plan() {
     if [ "$story_count" -gt 0 ]; then
         existing="
 
-Existing stories in ralph.json (don't duplicate these):
+Existing stories in kai.json (don't duplicate these):
 $(jq -r '.userStories[] | "- [\(if .passes then "done" else "todo" end)] \(.title)"' "$PRD_FILE")"
     fi
 
@@ -152,7 +152,7 @@ $(jq -r '.userStories[] | "- [\(if .passes then "done" else "todo" end)] \(.titl
     if [ -f "$PROMPT_FILE" ]; then
         project_context="
 
-Project context from .ralph/PROMPT.md:
+Project context from .kai/PROMPT.md:
 $(cat "$PROMPT_FILE")"
     fi
 
@@ -176,7 +176,7 @@ Rules for good stories:
 
 When the user is happy with the plan, output the stories in this EXACT format — one JSON block with all stories:
 
-\`\`\`ralph-stories
+\`\`\`kai-stories
 [
   {
     \"title\": \"Story title here\",
@@ -219,11 +219,11 @@ ${existing}${project_context}"
 
     if [ -z "$transcript" ] || [ ! -f "$transcript" ]; then
         echo "Could not find session transcript."
-        echo "If stories were generated, you can manually add them to ralph.json."
+        echo "If stories were generated, you can manually add them to kai.json."
         return
     fi
 
-    # Extract ralph-stories JSON from the transcript
+    # Extract kai-stories JSON from the transcript
     stories_json=$(python3 -c "
 import json, re, sys
 
@@ -238,8 +238,8 @@ with open('$transcript') as f:
                     for c in content:
                         if c.get('type') == 'text':
                             text = c['text']
-                            # Find ralph-stories block
-                            match = re.search(r'\`\`\`ralph-stories\s*\n(.*?)\n\`\`\`', text, re.DOTALL)
+                            # Find kai-stories block
+                            match = re.search(r'\`\`\`kai-stories\s*\n(.*?)\n\`\`\`', text, re.DOTALL)
                             if match:
                                 stories = match.group(1)
         except: pass
@@ -256,7 +256,7 @@ if stories:
         echo "Found ${count} stories:"
         echo "$stories_json" | jq -r '.[] | "  - \(.title)"'
         echo ""
-        echo "Add to ralph.json? (y/n)"
+        echo "Add to kai.json? (y/n)"
         read -r confirm
         if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ] || [ "$confirm" = "" ]; then
             _import_stories "$stories_json"
@@ -265,7 +265,7 @@ if stories:
         fi
     else
         echo "No stories found in session."
-        echo "If the PM generated stories, you can copy the JSON and add manually to ralph.json."
+        echo "If the PM generated stories, you can copy the JSON and add manually to kai.json."
     fi
 }
 
@@ -308,7 +308,7 @@ _import_stories() {
 
 cmd_status() {
     if [ ! -f "$PRD_FILE" ]; then
-        echo "ralph.json not found. Run 'ralph init' first."
+        echo "kai.json not found. Run 'kai init' first."
         exit 1
     fi
 
@@ -316,7 +316,7 @@ cmd_status() {
     done_count=$(jq '[.userStories[] | select(.passes == true)] | length' "$PRD_FILE")
     remaining=$((total - done_count))
 
-    echo "Ralph: ${done_count}/${total} complete (${remaining} remaining)"
+    echo "Kai: ${done_count}/${total} complete (${remaining} remaining)"
     echo ""
 
     if [ "$remaining" -gt 0 ]; then
@@ -328,7 +328,7 @@ cmd_status() {
 cmd_reset() {
     id="$1"
     if [ -z "$id" ]; then
-        echo "Usage: ralph reset <story-id>"
+        echo "Usage: kai reset <story-id>"
         exit 1
     fi
 
@@ -338,24 +338,24 @@ cmd_reset() {
 
 cmd_go() {
     if [ ! -f "$PRD_FILE" ]; then
-        echo "ralph.json not found. Run 'ralph init' first."
+        echo "kai.json not found. Run 'kai init' first."
         exit 1
     fi
 
     if [ ! -f "$PROMPT_FILE" ]; then
-        echo ".ralph/PROMPT.md not found. Run 'ralph init' first."
+        echo ".kai/PROMPT.md not found. Run 'kai init' first."
         exit 1
     fi
 
     # Collect context files
     context_files="@${PROMPT_FILE} @${PRD_FILE} @${PROGRESS_FILE}"
-    if [ -f ".ralph/context.txt" ]; then
+    if [ -f ".kai/context.txt" ]; then
         while IFS= read -r file; do
             [ -n "$file" ] && [ -f "$file" ] && context_files="$context_files @${file}"
-        done < .ralph/context.txt
+        done < .kai/context.txt
     fi
 
-    echo "Starting Ralph..."
+    echo "Starting Kai..."
     echo "  Stories remaining: $(jq '[.userStories[] | select(.passes == false)] | length' "$PRD_FILE")"
     echo "  Ctrl+C to stop"
     echo ""
@@ -480,7 +480,7 @@ Do NOT trust the implementer's self-report. Verify independently.")
         echo ""
     done
 
-    echo "Ralph finished after ${iteration} iterations."
+    echo "Kai finished after ${iteration} iterations."
 }
 
 # ── Main ───────────────────────────────────────────────

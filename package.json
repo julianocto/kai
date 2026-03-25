@@ -1,9 +1,9 @@
 {
-  "name": "ralph-cli",
+  "name": "kai-ai",
   "version": "1.0.0",
   "description": "Autonomous AI developer loop for Claude Code",
   "bin": {
-    "ralph": "./ralph"
+    "kai": "./kai"
   },
   "keywords": [
     "claude",
@@ -18,7 +18,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/julianocto/ralph"
+    "url": "https://github.com/julianocto/kai"
   },
-  "homepage": "https://github.com/julianocto/ralph"
+  "homepage": "https://github.com/julianocto/kai"
 }

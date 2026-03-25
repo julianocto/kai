@@ -1,12 +1,12 @@
-# Ralph
+# Kai
 
-Autonomous AI developer loop for [Claude Code](https://claude.ai/claude-code). Ralph takes a list of user stories and implements them one by one — with a built-in reviewer that catches when the AI cuts corners.
+Autonomous AI developer loop for [Claude Code](https://claude.ai/claude-code). Kai takes a list of user stories and implements them one by one — with a built-in reviewer that catches when the AI cuts corners.
 
 ## How it works
 
 ```
 ┌─────────────┐     ┌──────────────┐     ┌──────────────┐
-│  ralph.json │────▶│ Implementer  │────▶│   Reviewer   │
+│  kai.json │────▶│ Implementer  │────▶│   Reviewer   │
 │  (stories)  │     │ (claude -p)  │     │ (claude -p)  │
 └─────────────┘     └──────┬───────┘     └──────┬───────┘
                            │                     │
@@ -19,7 +19,7 @@ Autonomous AI developer loop for [Claude Code](https://claude.ai/claude-code). R
                                 └────────┘
 ```
 
-1. **Picks** the next incomplete story from `ralph.json`
+1. **Picks** the next incomplete story from `kai.json`
 2. **Implements** it using Claude Code (one `claude -p` call)
 3. **Reviews** the implementation with a separate Claude call that verifies each acceptance criterion against the actual git diff
 4. **Retries** if the review fails (up to 3 attempts, then skips)
@@ -31,12 +31,12 @@ Each iteration starts fresh — no context pollution between stories.
 
 ```bash
 # Clone and symlink
-git clone https://github.com/kraftapps-ai/ralph.git
-ln -s $(pwd)/ralph/ralph /usr/local/bin/ralph
+git clone https://github.com/julianocto/kai.git
+ln -s $(pwd)/kai/kai /usr/local/bin/kai
 
 # Or just copy the script
-curl -o /usr/local/bin/ralph https://raw.githubusercontent.com/kraftapps-ai/ralph/main/ralph
-chmod +x /usr/local/bin/ralph
+curl -o /usr/local/bin/kai https://raw.githubusercontent.com/julianocto/kai/main/kai
+chmod +x /usr/local/bin/kai
 ```
 
 **Requirements:** `claude` CLI ([Claude Code](https://claude.ai/claude-code)), `jq`, `git`
@@ -47,53 +47,53 @@ chmod +x /usr/local/bin/ralph
 cd your-project
 
 # Initialize
-ralph init
+kai init
 
 # Add your project context (tech stack, build commands, conventions)
-vim .ralph/PROMPT.md
+vim .kai/PROMPT.md
 
 # Plan with AI PM — brainstorm, refine, generate stories
-ralph plan "add user authentication with OAuth"
-# → AI generates stories → confirms → adds to ralph.json
+kai plan "add user authentication with OAuth"
+# → AI generates stories → confirms → adds to kai.json
 
 # Check what's queued
-ralph status
+kai status
 
-# Let Ralph implement everything
-ralph go
+# Let Kai implement everything
+kai go
 ```
 
 ## Commands
 
 | Command | Description |
 |---|---|
-| `ralph init` | Initialize ralph in the current project |
-| `ralph plan "topic"` | AI PM generates stories and adds them to ralph.json |
-| `ralph go` | Run the implement + review loop |
-| `ralph status` | Show progress and remaining stories |
-| `ralph reset <id>` | Reset a story to incomplete |
-| `ralph help` | Show help |
+| `kai init` | Initialize kai in the current project |
+| `kai plan "topic"` | AI PM generates stories and adds them to kai.json |
+| `kai go` | Run the implement + review loop |
+| `kai status` | Show progress and remaining stories |
+| `kai reset <id>` | Reset a story to incomplete |
+| `kai help` | Show help |
 
 ## Files
 
-After `ralph init`, your project gets:
+After `kai init`, your project gets:
 
 ```
 your-project/
-├── ralph.json            # Stories (version control this)
-├── ralph-progress.txt    # Implementation log (version control this)
-└── .ralph/
+├── kai.json            # Stories (version control this)
+├── kai-progress.txt    # Implementation log (version control this)
+└── .kai/
     ├── PROMPT.md         # Instructions for Claude (customize this!)
     └── context.txt       # Optional: extra files to include (one per line)
 ```
 
 ### Adding project context
 
-Edit `.ralph/PROMPT.md` to include your project's specifics — tech stack, file structure, build commands, coding conventions. The more context you give, the better Ralph performs.
+Edit `.kai/PROMPT.md` to include your project's specifics — tech stack, file structure, build commands, coding conventions. The more context you give, the better Kai performs.
 
 ### Extra context files
 
-Create `.ralph/context.txt` with paths to files that should be included in every iteration:
+Create `.kai/context.txt` with paths to files that should be included in every iteration:
 
 ```
 AGENTS.md
@@ -121,15 +121,15 @@ Stories are processed in `priority` order (lowest first). The `passes` flag is s
 
 ## The review step
 
-After the implementer commits, Ralph dispatches a **separate Claude instance** as a reviewer. The reviewer:
+After the implementer commits, Kai dispatches a **separate Claude instance** as a reviewer. The reviewer:
 
 1. Reads the actual git diff (not the implementer's self-report)
 2. Verifies each acceptance criterion against the code
 3. Is explicitly told: *"Do NOT trust the implementer. Verify independently."*
 
-If the review fails, the story is reset to `passes: false` and the feedback is appended to `ralph-progress.txt` so the next iteration sees what went wrong.
+If the review fails, the story is reset to `passes: false` and the feedback is appended to `kai-progress.txt` so the next iteration sees what went wrong.
 
-After 3 consecutive failures on the same story, Ralph skips it with a `concerns` flag and moves on.
+After 3 consecutive failures on the same story, Kai skips it with a `concerns` flag and moves on.
 
 ## Rationalization blockers
 
@@ -145,10 +145,10 @@ Inspired by [Superpowers](https://github.com/obra/superpowers).
 ## Tips
 
 - **Write good acceptance criteria.** "App builds successfully" should always be the last criterion.
-- **Keep stories small.** 5-15 minutes of work each. Ralph does better with many small stories than few large ones.
-- **Add build/test commands** to `.ralph/PROMPT.md` so Ralph knows how to verify.
-- **Use `ralph status`** to monitor progress, or `git log --oneline` to see commits.
-- **Run overnight.** `nohup ralph go > ralph.log 2>&1 &` and check in the morning.
+- **Keep stories small.** 5-15 minutes of work each. Kai does better with many small stories than few large ones.
+- **Add build/test commands** to `.kai/PROMPT.md` so Kai knows how to verify.
+- **Use `kai status`** to monitor progress, or `git log --oneline` to see commits.
+- **Run overnight.** `nohup kai go > kai.log 2>&1 &` and check in the morning.
 
 ## Cost
 
